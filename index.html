@@ -10,6 +10,7 @@
     <h2>Intonation Trainer</h2>
 
     <label>Select Deviation Amounts:</label><br>
+    <input type="checkbox" class="deviationCheckbox" value="5" checked> 5 cents (Flat or Sharp)<br>
     <input type="checkbox" class="deviationCheckbox" value="10" checked> 10 cents (Flat or Sharp)<br>
     <input type="checkbox" class="deviationCheckbox" value="25" checked> 25 cents (Flat or Sharp)<br>
     <input type="checkbox" class="deviationCheckbox" value="50" checked> 50 cents (Flat or Sharp)<br>
@@ -26,7 +27,7 @@
         let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         let osc1 = null, osc2 = null;
         let correctAnswer = "";
-        let selectedDeviations = [0, 10, 25, 50, 100]; // Default deviations (absolute values)
+        let selectedDeviations = [0, 5, 10, 25, 50, 100]; // Default deviations (absolute values)
 
         function updateDeviation() {
             let checkboxes = document.querySelectorAll(".deviationCheckbox");
