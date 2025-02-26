@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intonation Trainer</title>
+</head>
+<body>
+
+    <h2>Intonation Trainer</h2>
+
+    <label>Select Deviation Amounts:</label><br>
+    <input type="checkbox" class="deviationCheckbox" value="10" checked> 10 cents (Flat or Sharp)<br>
+    <input type="checkbox" class="deviationCheckbox" value="25" checked> 25 cents (Flat or Sharp)<br>
+    <input type="checkbox" class="deviationCheckbox" value="50" checked> 50 cents (Flat or Sharp)<br>
+    <input type="checkbox" class="deviationCheckbox" value="100" checked> 100 cents (Flat or Sharp)<br>
+    <input type="checkbox" class="deviationCheckbox" value="0" checked> In tune<br>
+
+    <br>
+    <button id="playButton">Play Notes</button>
+    <button id="sharpButton">Sharp</button>
+    <button id="flatButton">Flat</button>
+    <button id="inTuneButton">In Tune</button>
+
+    <script>
+        let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let osc1 = null, osc2 = null;
+        let correctAnswer = "";
+        let selectedDeviations = [0, 10, 25, 50, 100]; // Default deviations (absolute values)
+
+        function updateDeviation() {
+            let checkboxes = document.querySelectorAll(".deviationCheckbox");
+            selectedDeviations = [];
+            checkboxes.forEach(checkbox => {
+                if (checkbox.checked) {
+                    selectedDeviations.push(parseInt(checkbox.value));
+                }
+            });
+        }
+
+        function playNotes() {
+            if (osc1) osc1.stop();
+            if (osc2) osc2.stop();
+            
+            osc1 = audioCtx.createOscillator();
+            osc2 = audioCtx.createOscillator();
+            
+            let possibleFrequencies = [392, 415, 440, 466, 494, 523, 554, 587, 622, 659]; // G4 to E5 (full octave)
+            let baseFrequency = possibleFrequencies[Math.floor(Math.random() * possibleFrequencies.length)];
+            let randomIndex = Math.floor(Math.random() * selectedDeviations.length);
+            let deviation = selectedDeviations[randomIndex] || 0; // Default to 0 if nothing selected
+            let detuneAmount = deviation === 0 ? 0 : (Math.random() < 0.5 ? -deviation : deviation); // Randomly flat or sharp
+
+            osc1.frequency.setValueAtTime(baseFrequency, audioCtx.currentTime);
+            osc1.type = "triangle";
+            osc1.connect(audioCtx.destination);
+            osc1.start();
+            setTimeout(() => {
+                osc1.stop();
+                osc2.frequency.setValueAtTime(baseFrequency * Math.pow(2, detuneAmount / 1200), audioCtx.currentTime);
+                osc2.type = "triangle";
+                osc2.connect(audioCtx.destination);
+                osc2.start();
+                setTimeout(() => osc2.stop(), 2 * 1000);
+            }, 2000); // Play first note, then second after 2 seconds
+
+            correctAnswer = detuneAmount === 0 ? "in_tune" : detuneAmount > 0 ? "sharp" : "flat";
+        }
+
+        function checkAnswer(userAnswer) {
+            if (userAnswer === correctAnswer) {
+                alert("Correct!");
+            } else {
+                alert(`Incorrect! The correct answer was ${correctAnswer.replace('_', ' ')}.`);
+            }
+            playNotes(); // Play new notes after answering
+        }
+
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("playButton").addEventListener("click", playNotes);
+            document.getElementById("sharpButton").addEventListener("click", () => checkAnswer("sharp"));
+            document.getElementById("flatButton").addEventListener("click", () => checkAnswer("flat"));
+            document.getElementById("inTuneButton").addEventListener("click", () => checkAnswer("in_tune"));
+            let checkboxes = document.querySelectorAll(".deviationCheckbox");
+            checkboxes.forEach(checkbox => checkbox.addEventListener("change", updateDeviation));
+        });
+    </script>
+
+</body>
+</html>
