@@ -16,75 +16,121 @@
     <input type="checkbox" class="deviationCheckbox" value="50" checked> 50 cents (Flat or Sharp)<br>
     <input type="checkbox" class="deviationCheckbox" value="100" checked> 100 cents (Flat or Sharp)<br>
     <input type="checkbox" class="deviationCheckbox" value="0" checked> In tune<br>
+	<input type="checkbox" id="keepFirstPitchCheckbox"> Keep first pitch playing
+
 
     <br>
     <button id="playButton">Play Notes</button>
+	<button id="repeatButton">Repeat Last Notes</button>
+	<br><br><br>
     <button id="sharpButton">Sharp</button>
     <button id="flatButton">Flat</button>
     <button id="inTuneButton">In Tune</button>
 
     <script>
-        let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        let osc1 = null, osc2 = null;
-        let correctAnswer = "";
-        let selectedDeviations = [0, 5, 10, 25, 50, 100]; // Default deviations (absolute values)
+let audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+let osc1 = null, osc2 = null;
+let correctAnswer = "";
+let selectedDeviations = [0, 5, 10, 25, 50, 100]; // Default deviations (absolute values)
+let keepFirstPitch = false; // Option to keep first pitch playing
+let waitingForNextPlay = true; // Prevent auto-playing after an answer. Set to true so playing can occur on first load
+let lastBaseFrequency = null;
+let lastDetuneAmount = null;
 
-        function updateDeviation() {
-            let checkboxes = document.querySelectorAll(".deviationCheckbox");
-            selectedDeviations = [];
-            checkboxes.forEach(checkbox => {
-                if (checkbox.checked) {
-                    selectedDeviations.push(parseInt(checkbox.value));
-                }
-            });
+function updateDeviation() {
+    let checkboxes = document.querySelectorAll(".deviationCheckbox");
+    selectedDeviations = [];
+    checkboxes.forEach(checkbox => {
+        if (checkbox.checked) {
+            selectedDeviations.push(parseInt(checkbox.value));
         }
+    });
+}
 
-        function playNotes() {
-            if (osc1) osc1.stop();
-            if (osc2) osc2.stop();
-            
-            osc1 = audioCtx.createOscillator();
-            osc2 = audioCtx.createOscillator();
-            
-            let possibleFrequencies = [392, 415, 440, 466, 494, 523, 554, 587, 622, 659]; // G4 to E5 (full octave)
-            let baseFrequency = possibleFrequencies[Math.floor(Math.random() * possibleFrequencies.length)];
-            let randomIndex = Math.floor(Math.random() * selectedDeviations.length);
-            let deviation = selectedDeviations[randomIndex] || 0; // Default to 0 if nothing selected
-            let detuneAmount = deviation === 0 ? 0 : (Math.random() < 0.5 ? -deviation : deviation); // Randomly flat or sharp
+function toggleKeepFirstPitch() {
+    keepFirstPitch = document.getElementById("keepFirstPitchCheckbox").checked;
+}
 
-            osc1.frequency.setValueAtTime(baseFrequency, audioCtx.currentTime);
-            osc1.type = "triangle";
-            osc1.connect(audioCtx.destination);
-            osc1.start();
-            setTimeout(() => {
-                osc1.stop();
-                osc2.frequency.setValueAtTime(baseFrequency * Math.pow(2, detuneAmount / 1200), audioCtx.currentTime);
-                osc2.type = "triangle";
-                osc2.connect(audioCtx.destination);
-                osc2.start();
-                setTimeout(() => osc2.stop(), 2 * 1000);
-            }, 2000); // Play first note, then second after 2 seconds
+function playNotes(repeat = false) {
+    waitingForNextPlay = false; // Reset waiting state
+    if (!keepFirstPitch && osc1) osc1.stop(); // Stop previous osc1 if keepFirstPitch is off
+    if (osc2) osc2.stop();
+    
+    osc1 = audioCtx.createOscillator();
+    osc2 = audioCtx.createOscillator();
+    
+    let possibleFrequencies = [392, 415, 440, 466, 494, 523, 554, 587, 622, 659]; // G4 to E5 (full octave)
+    let baseFrequency = repeat && lastBaseFrequency ? lastBaseFrequency : possibleFrequencies[Math.floor(Math.random() * possibleFrequencies.length)];
+    let detuneAmount = repeat && lastDetuneAmount !== null ? lastDetuneAmount : (selectedDeviations.length ? selectedDeviations[Math.floor(Math.random() * selectedDeviations.length)] : 0);
+    detuneAmount = detuneAmount === 0 ? 0 : (Math.random() < 0.5 ? -detuneAmount : detuneAmount); // Randomly flat or sharp
 
-            correctAnswer = detuneAmount === 0 ? "in_tune" : detuneAmount > 0 ? "sharp" : "flat";
-        }
+    if (!repeat) {
+        lastBaseFrequency = baseFrequency;
+        lastDetuneAmount = detuneAmount;
+    }
 
-        function checkAnswer(userAnswer) {
-            if (userAnswer === correctAnswer) {
-                alert("Correct!");
-            } else {
-                alert(`Incorrect! The correct answer was ${correctAnswer.replace('_', ' ')}.`);
+    // First oscillator (Always starts and plays when keepFirstPitch is checked)
+    osc1.frequency.setValueAtTime(baseFrequency, audioCtx.currentTime);
+    osc1.type = "triangle";
+    osc1.connect(audioCtx.destination);
+    osc1.start();
+    
+    // Start second oscillator after a delay
+    setTimeout(() => {
+        osc2.frequency.setValueAtTime(baseFrequency * Math.pow(2, detuneAmount / 1200), audioCtx.currentTime);
+        osc2.type = "triangle";
+        osc2.connect(audioCtx.destination);
+        osc2.start();
+        
+        setTimeout(() => {
+            osc2.stop();
+            if (keepFirstPitch) {
+                osc1.stop(); // Stop first pitch when second pitch stops
             }
-            playNotes(); // Play new notes after answering
-        }
+        }, 2000); // Second note stops after 2 seconds
+    }, 2000); // Second note starts 2 seconds after first
+    
+    // Stop first pitch when second pitch starts if keepFirstPitch is off
+    if (!keepFirstPitch) {
+        setTimeout(() => {
+            if (osc1) osc1.stop();
+        }, 2000);
+    }
 
-        document.addEventListener("DOMContentLoaded", () => {
-            document.getElementById("playButton").addEventListener("click", playNotes);
-            document.getElementById("sharpButton").addEventListener("click", () => checkAnswer("sharp"));
-            document.getElementById("flatButton").addEventListener("click", () => checkAnswer("flat"));
-            document.getElementById("inTuneButton").addEventListener("click", () => checkAnswer("in_tune"));
-            let checkboxes = document.querySelectorAll(".deviationCheckbox");
-            checkboxes.forEach(checkbox => checkbox.addEventListener("change", updateDeviation));
-        });
+    correctAnswer = detuneAmount === 0 ? "in_tune" : detuneAmount > 0 ? "sharp" : "flat";
+}
+
+function checkAnswer(userAnswer) {
+    // Stop all oscillators immediately before showing the alert
+    if (osc1) osc1.stop();
+    if (osc2) osc2.stop();
+    
+    setTimeout(() => {
+        if (userAnswer === correctAnswer) {
+            alert("Correct!");
+        } else {
+            alert(`Incorrect! The correct answer was ${correctAnswer.replace('_', ' ')}.`);
+        }
+        waitingForNextPlay = true; // Wait for user to click play again
+    }, 100); // Short delay to ensure sound stops before alert
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("playButton").addEventListener("click", () => {
+        if (waitingForNextPlay) {
+            playNotes();
+            waitingForNextPlay = false; // Reset the flag so new notes can be played
+        }
+    });
+    document.getElementById("repeatButton").addEventListener("click", () => playNotes(true));
+    document.getElementById("sharpButton").addEventListener("click", () => checkAnswer("sharp"));
+    document.getElementById("flatButton").addEventListener("click", () => checkAnswer("flat"));
+    document.getElementById("inTuneButton").addEventListener("click", () => checkAnswer("in_tune"));
+    document.getElementById("keepFirstPitchCheckbox").addEventListener("change", toggleKeepFirstPitch);
+    let checkboxes = document.querySelectorAll(".deviationCheckbox");
+    checkboxes.forEach(checkbox => checkbox.addEventListener("change", updateDeviation));
+});
+
     </script>
 
 </body>
